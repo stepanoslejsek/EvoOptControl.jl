@@ -1,0 +1,4 @@
+name = "EvoOptControl"
+uuid = "e4224699-ea54-44ea-8e7b-3acb4c7c2ccc"
+authors = ["Štěpán Ošlejšek <oslejsek@ima.cz>"]
+version = "0.1.0"
