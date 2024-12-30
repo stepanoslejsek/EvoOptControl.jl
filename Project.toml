@@ -2,3 +2,8 @@ name = "EvoOptControl"
 uuid = "e4224699-ea54-44ea-8e7b-3acb4c7c2ccc"
 authors = ["Štěpán Ošlejšek <oslejsek@ima.cz>"]
 version = "0.1.0"
+
+[deps]
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+Evolutionary = "86b6b26d-c046-49b6-aa0b-5f0f74682bd6"
+FastGaussQuadrature = "442a2c76-b920-505d-bb47-c5924d526838"
