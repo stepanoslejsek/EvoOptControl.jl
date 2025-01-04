@@ -41,5 +41,14 @@ struct OCProblem{T<:CollocationMethod}
   control_constraints::Vector{ControlConstraint}
 end
 
+struct OCPSolution
+  fitness_values::Vector{Float64}
+  min_value::Float64
+  t::Vector{Float64}
+  states::Matrix{Float64}
+  controls::Matrix{Float64}
+  f_calls::Int
+end
+
 
 

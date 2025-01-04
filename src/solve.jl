@@ -38,10 +38,13 @@ function solve_ocp(prob::OCProblem, ea_method::Evolutionary.AbstractOptimizer,
   ea_options = Evolutionary.Options(iterations=iterations, show_trace=true, store_trace=true)
 
   c(x) = [eval_dynamics(prob, x), eval_initial_state(prob, x), eval_final_state(prob, x)]
-  lc = uc = zeros(3)
+  lc = uc = zeros(3) + (2*rand(3).-1) * eps()
+  lc = zeros(3) .- 0.0001
+  uc = zeros(3) .+ 0.0001
   con = WorstFitnessConstraints(lb, ub, lc, uc, c)
 
-  init_pop = zeros(n_vars)
-  result = Evolutionary.optimize(objective, con, init_pop, ea_method, ea_options)
+  # *Clever* inicialization (states set to zero except x0 and xf and control to uniform value between boundaries)
+  init_pop = vcat(prob.x0, zeros(nx*(N-2)), prob.xf, [rand() * (ub[i] - lb[i]) + lb[i] for i in N*nx+1:n_vars])
+  result = Evolutionary.optimize(objective, con, init_pop,  ea_method, ea_options)
   return result
 end
