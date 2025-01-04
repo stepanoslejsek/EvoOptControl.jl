@@ -44,7 +44,7 @@ function solve_ocp(prob::OCProblem, ea_method::Evolutionary.AbstractOptimizer,
   con = WorstFitnessConstraints(lb, ub, lc, uc, c)
 
   # *Clever* inicialization (states set to zero except x0 and xf and control to uniform value between boundaries)
-  init_pop = vcat(prob.x0, zeros(nx*(N-2)), prob.xf, [rand() * (ub[i] - lb[i]) + lb[i] for i in N*nx+1:n_vars])
+  init_pop = vcat(prob.x0, 0.02 * rand(nx*(N-2)) .- 0.01, prob.xf, [rand() * (ub[i] - lb[i]) + lb[i] for i in N*nx+1:n_vars])
   result = Evolutionary.optimize(objective, con, init_pop,  ea_method, ea_options)
   return result
 end

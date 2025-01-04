@@ -121,38 +121,60 @@ function create_OCPSolution(prob::OCProblem, sol::Evolutionary.EvolutionaryOptim
 end
 
 function plot_3d_erd(histories::Vector{OCPSolution})
-  min_fitness = minimum(minimum(h.fitness_values for h in histories))
-  max_fitness = maximum(maximum(filter(x->x!=Inf, h.fitness_values) for h in histories))
-  targets = collect(range(min_fitness, max_fitness, length=2000))
-
-  eval_points, _ = compute_erd(history, targets[1])
-  probs = zeros(length(eval_points), length(targets))
-
-  fig = Figure()
-  ax = Axis3(fig[1, 1]; title="3D Expected Runtime Distribution", xlabel="#f-evaluations", ylabel="Fitness", zlabel="Probability")
+  min_fitness = minimum(minimum(h.fitness_values[2:end]) for h in histories)
+  max_fitness = maximum(maximum(h.fitness_values[2:end]) for h in histories)
+  
+  n_targets = 100  # Reduced from 2000 for better performance
+  targets = range(min_fitness, max_fitness, length=n_targets)
+  
+  eval_points, _ = compute_erd(histories, targets[1])
+  n_evals = length(eval_points)
+  probs = zeros(n_evals, length(targets))
+  
+  # Compute ERD for each target value
   for (i, target) in enumerate(targets)
-    _, probabilities = compute_erd(history, target)
+    _, probabilities = compute_erd(histories, target)
     probs[:, i] = probabilities
   end
-  surface!(ax, eval_points, targets, probs)
+  
+  fig = Figure()
+  ax = Axis3(fig[1, 1],
+    title="3D Expected Runtime Distribution",
+    xlabel="Number of Function Evaluations",
+    ylabel="Target Fitness Value",
+    zlabel="Probability",
+    elevation=0.3,
+    azimuth=0.8
+  )
+  
+  surface!(ax, eval_points, collect(targets), probs,
+    colormap=:viridis,
+    transparency=false,
+    shading=true
+  )
+  
+  Colorbar(fig[1, 2], limits=(0, 1), colormap=:viridis,
+    label="Probability of reaching target")
+  
   return fig
 end
 
 function compute_erd(histories::Vector{OCPSolution}, target::Float64)
   n_runs = length(histories)
   max_evals = maximum(h.f_calls for h in histories)
-  step = max_evals/200
+  n_points = 200
+  step = max_evals / n_points
   eval_points = 0:step:max_evals
-
-  all_probabilities = Dict{Int, Vector{Float64}}()
-  probabilities = []
+  
+  probabilities = Float64[]
+  
   for eval_point in eval_points
     successful_runs = 0
     for history in histories
-      # Find first index where we reach target fitness
-      fitness_values = history.fitness_values
-      eval_indices = 0:10:length(fitness_values)
-          
+      # Get fitness values excluding the initial point
+      fitness_values = history.fitness_values[2:end]
+      eval_indices = range(0, history.f_calls, length=length(fitness_values))
+      
       # Check if target was reached by this evaluation point
       for (eval_idx, fitness) in zip(eval_indices, fitness_values)
         if eval_idx > eval_point
@@ -166,5 +188,6 @@ function compute_erd(histories::Vector{OCPSolution}, target::Float64)
     end
     push!(probabilities, successful_runs / n_runs)
   end
-  return eval_points, probabilities
+  
+  return collect(eval_points), probabilities
 end
