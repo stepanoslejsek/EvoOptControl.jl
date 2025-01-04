@@ -150,7 +150,6 @@ function plot_3d_erd(histories::Vector{OCPSolution})
   surface!(ax, eval_points, collect(targets), probs,
     colormap=:viridis,
     transparency=false,
-    shading=true
   )
   
   Colorbar(fig[1, 2], limits=(0, 1), colormap=:viridis,
@@ -191,3 +190,16 @@ function compute_erd(histories::Vector{OCPSolution}, target::Float64)
   
   return collect(eval_points), probabilities
 end
+
+function simulate_system(dynamics::Function, prob::OCProblem, sol::OCPSolution)
+  diffeq_prob = ODEProblem(dynamics, prob.x0, prob.tspan, sol.controls[:,1])
+  callback_times = sol.t
+  u = sol.controls
+  condition(x, t, integrator) = t ∈ callback_times
+  affect!(integrator) = integrator.p = u[:, findall(x->x == integrator.t, callback_times)[1]]
+  cb = DiscreteCallback(condition, affect!)
+  diffeq_sol = solve(diffeq_prob, Rosenbrock23(), callback = cb, tstops = callback_times)
+  return diffeq_sol
+end
+
+Base.minimum(v::Vector{OCPSolution}) = v[argmin(s.min_value for s in v)]

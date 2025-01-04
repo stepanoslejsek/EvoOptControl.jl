@@ -17,7 +17,7 @@ xf = [pi, 0.0]
 
 state_dim = 2
 control_dim = 1
-method = TrapezoidalCollocation(30)
+method = TrapezoidalCollocation(100)
 
 state_constraints = [StateConstraint(identity, [-2pi, -10.0], [2pi, 10.0])]
 control_constraints = [ControlConstraint(identity, [-5.0], [5.0])]
@@ -26,10 +26,10 @@ prob = OCProblem(running_cost, terminal_cost, tspan, dynamics, x0, xf, state_dim
 
 pop_size = 100
 iterations = 100
-ea_method = CMAES(mu=100, lambda=200)
-# ea_method = ES(initStrategy = IsotropicStrategy(90), srecombination=average, recombination=average, mutation=gaussian, smutation=gaussian, mu=100, rho=40, lambda=200, selection=:comma)
+# ea_method = CMAES(mu=100, lambda=200)
+ea_method = ES(initStrategy = IsotropicStrategy(300), srecombination=average, recombination=average, mutation=gaussian, smutation=gaussian, mu=100, rho=40, lambda=200, selection=:plus)
 
-N = 100
+N = 10
 history = Vector{OCPSolution}(undef, N)
 for i = 1:N
   sol = solve_ocp(prob, ea_method, pop_size, iterations)
