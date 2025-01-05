@@ -53,12 +53,12 @@ function solve_ocp(prob::OCProblem, ea_method::Evolutionary.AbstractOptimizer,
     lc = zeros(3) .- 0.0001
     uc = zeros(3) .+ 0.0001
     con = WorstFitnessConstraints(lb, ub, lc, uc, c)
-  else if state_constraint_count != 0 && control_constraint_count == 0
+  elseif state_constraint_count != 0 && control_constraint_count == 0
     c(x) = [eval_dynamics(prob, x), eval_initial_state(prob, x), eval_final_state(prob, x), eval_state_constr(prob, x)]
     lc = zeros(4) .- 0.0001
     uc = zeros(4) .+ 0.0001
     con = WorstFitnessConstraints(lb, ub, lc, uc, c)
-  else if state_constraint_count == 0 && control_constraint_count != 0
+  elseif state_constraint_count == 0 && control_constraint_count != 0
     c(x) = [eval_dynamics(prob, x), eval_initial_state(prob, x), eval_final_state(prob, x), eval_control_constr(prob, x)]
     lc = zeros(4) .- 0.0001
     uc = zeros(4) .+ 0.0001
