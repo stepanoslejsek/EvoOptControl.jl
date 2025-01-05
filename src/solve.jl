@@ -12,14 +12,25 @@ function solve_ocp(prob::OCProblem, ea_method::Evolutionary.AbstractOptimizer,
   lb = Float64[]
   ub = Float64[]
 
+  state_constraint_count = 0
+  control_constraint_count = 0
+
   for constraint in prob.state_constraints
-    append!(lb, repeat(constraint.lb, N))
-    append!(ub, repeat(constraint.ub, N))
+    if constraint.fun == identity
+      append!(lb, repeat(constraint.lb, N))
+      append!(ub, repeat(constraint.ub, N))
+    else
+      state_constraint_count += 1
+    end
   end
 
   for constraint in prob.control_constraints
-    append!(lb, repeat(constraint.lb, N))
-    append!(ub, repeat(constraint.ub, N))
+    if constraint.fun == identity
+      append!(lb, repeat(constraint.lb, N))
+      append!(ub, repeat(constraint.ub, N))
+    else
+      control_constraint_flag += 1
+    end
   end
 
   if isempty(lb)
@@ -37,11 +48,27 @@ function solve_ocp(prob::OCProblem, ea_method::Evolutionary.AbstractOptimizer,
 
   ea_options = Evolutionary.Options(iterations=iterations, show_trace=true, store_trace=true)
 
-  c(x) = [eval_dynamics(prob, x), eval_initial_state(prob, x), eval_final_state(prob, x)]
-  lc = uc = zeros(3) + (2*rand(3).-1) * eps()
-  lc = zeros(3) .- 0.0001
-  uc = zeros(3) .+ 0.0001
-  con = WorstFitnessConstraints(lb, ub, lc, uc, c)
+  if state_constraint_count == 0 && control_constraint_count == 0
+    c(x) = [eval_dynamics(prob, x), eval_initial_state(prob, x), eval_final_state(prob, x)]
+    lc = zeros(3) .- 0.0001
+    uc = zeros(3) .+ 0.0001
+    con = WorstFitnessConstraints(lb, ub, lc, uc, c)
+  else if state_constraint_count != 0 && control_constraint_count == 0
+    c(x) = [eval_dynamics(prob, x), eval_initial_state(prob, x), eval_final_state(prob, x), eval_state_constr(prob, x)]
+    lc = zeros(4) .- 0.0001
+    uc = zeros(4) .+ 0.0001
+    con = WorstFitnessConstraints(lb, ub, lc, uc, c)
+  else if state_constraint_count == 0 && control_constraint_count != 0
+    c(x) = [eval_dynamics(prob, x), eval_initial_state(prob, x), eval_final_state(prob, x), eval_control_constr(prob, x)]
+    lc = zeros(4) .- 0.0001
+    uc = zeros(4) .+ 0.0001
+    con = WorstFitnessConstraints(lb, ub, lc, uc, c)
+  else
+    c(x) = [eval_dynamics(prob, x), eval_initial_state(prob, x), eval_final_state(prob, x), eval_state_constr(prob, x), eval_control_constr(prob, x)]
+    lc = zeros(5) .- 0.0001
+    uc = zeros(5) .+ 0.0001
+    con = WorstFitnessConstraints(lb, ub, lc, uc, c)
+  end
 
   # *Clever* inicialization (states set to zero except x0 and xf and control to uniform value between boundaries)
   init_pop = vcat(prob.x0, 0.02 * rand(nx*(N-2)) .- 0.01, prob.xf, [rand() * (ub[i] - lb[i]) + lb[i] for i in N*nx+1:n_vars])

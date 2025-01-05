@@ -16,6 +16,38 @@ function extract_trajectory(prob::OCProblem, x::Vector{Float64})
   return t, states, controls
 end
 
+function eval_control_constr(prob::OCProblem, x::Vector{Float64})
+  t, states, controls = extract_trajectory(prob, x)
+
+  violation = 0.0
+
+  for (i, c) in enumerate(prob.control_constraints)
+    if c.fun != identity
+      res = c.fun(controls, dims=1)
+      mask = c.lb[1] .> res  .||  res .> c.ub[1]
+      violating_elements = res[mask]
+      violation += sum(violating_elements.^2)
+    end
+  end
+  return violation
+end
+
+function eval_state_constr(prob::OCProblem, x::Vector{Float64})
+  t, states, controls = extract_trajectory(prob, x)
+
+  violation = 0.0
+
+  for (i, c) in enumerate(prob.state_constraints)
+    if c.fun != identity
+      res = c.fun(controls, dims=1)
+      mask = c.lb[1] .> res  .||  res .> c.ub[1]
+      violating_elements = res[mask]
+      violation += sum(violating_elements.^2)
+    end
+  end
+  return violation
+end
+
 function eval_dynamics_backward_euler(prob::OCProblem{BackwardEulerCollocation}, x::Vector{Float64})
   t, states, controls = extract_trajectory(prob, x)
 
@@ -28,7 +60,7 @@ function eval_dynamics_backward_euler(prob::OCProblem{BackwardEulerCollocation},
     xᵢ₊₁ = states[:, i+1]
     uᵢ₊₁ = controls[:, i+1]
 
-    fᵢ₊₁ = prob.dynamics(t[i+1], xᵢ₊₁, uᵢ₊₁)
+    fᵢ₊₁ = prob.dynamics(xᵢ₊₁, uᵢ₊₁, t[i+1])
 
     diff_derivative[:, i] = xᵢ₊₁ - xᵢ - h*fᵢ₊₁
   end
@@ -48,8 +80,8 @@ function eval_dynamics_trapezoidal(prob::OCProblem{TrapezoidalCollocation}, x::V
     xᵢ₊₁ = states[:, i+1]
     uᵢ₊₁ = controls[:, i+1]
 
-    fᵢ = prob.dynamics(t[i], xᵢ, uᵢ)
-    fᵢ₊₁ = prob.dynamics(t[i+1], xᵢ₊₁, uᵢ₊₁)
+    fᵢ = prob.dynamics(xᵢ, uᵢ, t[i])
+    fᵢ₊₁ = prob.dynamics(xᵢ₊₁, uᵢ₊₁, t[i+1])
 
     diff_derivative[:, i] = xᵢ₊₁ - xᵢ - (h/2)*(fᵢ + fᵢ₊₁)
   end
@@ -62,10 +94,10 @@ function eval_cost_backward_euler(prob::OCProblem{BackwardEulerCollocation}, x::
   N = prob.collocation.N
   h = t[2] - t[1]
 
-  terminal_cost = prob.terminal_cost(t[end], states[:, end])
+  terminal_cost = prob.terminal_cost(states[:, end], t[end])
   running_cost = 0
   for i in 1:N
-    running_cost += h*prob.running_cost(t[i], states[:, i], controls[:, i])
+    running_cost += h*prob.running_cost(states[:, i], controls[:, i], t[i])
   end
   return running_cost + terminal_cost
 end
@@ -76,14 +108,14 @@ function eval_cost_trapezoidal(prob::OCProblem{TrapezoidalCollocation}, x::Vecto
   N = prob.collocation.N
   h = t[2] - t[1]
 
-  terminal_cost = prob.terminal_cost(t[end], states[:, end])
+  terminal_cost = prob.terminal_cost(states[:, end], t[end])
   running_cost = 0
   for i in 1:N-1
     xᵢ = states[:, i]
     uᵢ = controls[:, i]
     xᵢ₊₁ = states[:, i+1]
     uᵢ₊₁ = controls[:, i+1]
-    running_cost += (h/2)*(prob.running_cost(t[i], xᵢ, uᵢ) + prob.running_cost(t[i+1], xᵢ₊₁, uᵢ₊₁))
+    running_cost += (h/2)*(prob.running_cost(xᵢ, uᵢ, t[i]) + prob.running_cost(xᵢ₊₁, uᵢ₊₁, t[i+1]))
   end
   return running_cost + terminal_cost
 end
@@ -187,13 +219,15 @@ function simulate_system(dynamics::Function, prob::OCProblem, sol::OCPSolution)
   return diffeq_sol
 end
 
-function plot_results(prob::OCProblem, ea_sol::Vector{OCPSolution}, diffeq_sol)
+function plot_results(prob::OCProblem, ea_sol::Vector{OCPSolution}, diffeq_sol, title::String)
   n_subfigures = size(ea_sol[1].states, 1) + 2 # plus controls and 3D ERD
   n_cols = Int(round(n_subfigures/2))
 
   fig = Figure(size=(n_cols*1200/3, 600))
   axes = Vector{Any}()
   colors = [:blue, :red]
+  supertitle = Label(fig[0, :], title)
+
   for i in 1:n_cols
     push!(axes, Axis(fig[1,i], yticklabelcolor=:blue, xlabel="Time [s]", ylabel="x"*string(i), xminorgridvisible=true, xtickalign=1, yminorgridvisible=true, ytickalign=1, xminorticks=IntervalsBetween(5), yminorticks=IntervalsBetween(5)))
     push!(axes, Axis(fig[1,i], yticklabelcolor=:red, yaxisposition = :right, yminorgridvisible=true, ytickalign=1))
