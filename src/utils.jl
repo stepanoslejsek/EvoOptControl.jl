@@ -120,7 +120,7 @@ function create_OCPSolution(prob::OCProblem, sol::Evolutionary.EvolutionaryOptim
   return OCPSolution(fitness_values, sol.minimum, t, states, controls, sol.f_calls)
 end
 
-function plot_3d_erd(histories::Vector{OCPSolution})
+function plot_3d_erd(axis, histories::Vector{OCPSolution})
   min_fitness = minimum(minimum(h.fitness_values[2:end]) for h in histories)
   max_fitness = maximum(maximum(h.fitness_values[2:end]) for h in histories)
   
@@ -137,25 +137,10 @@ function plot_3d_erd(histories::Vector{OCPSolution})
     probs[:, i] = probabilities
   end
   
-  fig = Figure()
-  ax = Axis3(fig[1, 1],
-    title="3D Expected Runtime Distribution",
-    xlabel="Number of Function Evaluations",
-    ylabel="Target Fitness Value",
-    zlabel="Probability",
-    elevation=0.3,
-    azimuth=0.8
-  )
-  
-  surface!(ax, eval_points, collect(targets), probs,
+  surface!(axis, eval_points, collect(targets), probs,
     colormap=:viridis,
     transparency=false,
   )
-  
-  Colorbar(fig[1, 2], limits=(0, 1), colormap=:viridis,
-    label="Probability of reaching target")
-  
-  return fig
 end
 
 function compute_erd(histories::Vector{OCPSolution}, target::Float64)
@@ -200,6 +185,49 @@ function simulate_system(dynamics::Function, prob::OCProblem, sol::OCPSolution)
   cb = DiscreteCallback(condition, affect!)
   diffeq_sol = solve(diffeq_prob, Rosenbrock23(), callback = cb, tstops = callback_times)
   return diffeq_sol
+end
+
+function plot_results(prob::OCProblem, ea_sol::Vector{OCPSolution}, diffeq_sol)
+  n_subfigures = size(ea_sol[1].states, 1) + 2 # plus controls and 3D ERD
+  n_cols = Int(round(n_subfigures/2))
+
+  fig = Figure(size=(n_cols*1200/3, 600))
+  axes = Vector{Any}()
+  colors = [:blue, :red]
+  for i in 1:n_cols
+    push!(axes, Axis(fig[1,i], yticklabelcolor=:blue, xlabel="Time [s]", ylabel="x"*string(i), xminorgridvisible=true, xtickalign=1, yminorgridvisible=true, ytickalign=1, xminorticks=IntervalsBetween(5), yminorticks=IntervalsBetween(5)))
+    push!(axes, Axis(fig[1,i], yticklabelcolor=:red, yaxisposition = :right, yminorgridvisible=true, ytickalign=1))
+    hidespines!(axes[end])
+    hidexdecorations!(axes[end])
+  end
+  residual = size(ea_sol[1].states, 1) - n_cols
+  if residual != 0
+    for i = 1:residual
+      push!(axes, Axis(fig[2,i], yticklabelcolor=:blue, xlabel="Time [s]", ylabel="x"*string(i+n_cols), xminorgridvisible=true, xtickalign=1, yminorgridvisible=true, ytickalign=1, xminorticks=IntervalsBetween(5), yminorticks=IntervalsBetween(5)))
+      push!(axes, Axis(fig[2,i], yticklabelcolor=:red, yaxisposition=:right, yminorgridvisible=true, ytickalign=1))
+      hidespines!(axes[end])
+      hidexdecorations!(axes[end])
+    end
+  end
+  push!(axes, Axis(fig[2,end-1], xlabel="Time [s]", ylabel="u", xminorgridvisible=true, xtickalign=1, yminorgridvisible=true, ytickalign=1, xminorticks=IntervalsBetween(5), yminorticks=IntervalsBetween(5)))
+  push!(axes, Axis3(fig[2, end], title="3D ERD", xlabel="#f-evals", ylabel="Target fitness", zlabel="Probability", elevation=0.4, azimuth=-0.8*pi))
+
+  best_sol = minimum(ea_sol)
+  for (i, k) = zip(1:2:2*size(ea_sol[1].states, 1), 1:size(ea_sol[1].states, 1))
+    lines!(axes[i], best_sol.t, best_sol.states[k, :], alpha=1, color=:blue, label="EA")
+    lines!(axes[i+1], diffeq_sol.t, diffeq_sol[k, :], alpha=1, color=:red, label="ODE")
+    axislegend(axes[i], unique=true, position=:lt)
+    axislegend(axes[i+1])
+  end
+
+  for i = 1:size(best_sol.controls, 1)
+    stairs!(axes[end-1], best_sol.t, best_sol.controls[i,:], color=colors[i], label="u"*string(i))
+  end
+  axislegend(axes[end-1])
+
+  plot_3d_erd(axes[end], ea_sol)
+
+  return fig
 end
 
 Base.minimum(v::Vector{OCPSolution}) = v[argmin(s.min_value for s in v)]
