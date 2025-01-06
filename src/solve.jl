@@ -29,7 +29,7 @@ function solve_ocp(prob::OCProblem, ea_method::Evolutionary.AbstractOptimizer,
       append!(lb, repeat(constraint.lb, N))
       append!(ub, repeat(constraint.ub, N))
     else
-      control_constraint_flag += 1
+      control_constraint_count += 1
     end
   end
 
@@ -48,30 +48,35 @@ function solve_ocp(prob::OCProblem, ea_method::Evolutionary.AbstractOptimizer,
 
   ea_options = Evolutionary.Options(iterations=iterations, show_trace=true, store_trace=true)
 
-  if state_constraint_count == 0 && control_constraint_count == 0
-    c(x) = [eval_dynamics(prob, x), eval_initial_state(prob, x), eval_final_state(prob, x)]
-    lc = zeros(3) .- 0.0001
-    uc = zeros(3) .+ 0.0001
-    con = WorstFitnessConstraints(lb, ub, lc, uc, c)
-  elseif state_constraint_count != 0 && control_constraint_count == 0
-    c(x) = [eval_dynamics(prob, x), eval_initial_state(prob, x), eval_final_state(prob, x), eval_state_constr(prob, x)]
-    lc = zeros(4) .- 0.0001
-    uc = zeros(4) .+ 0.0001
-    con = WorstFitnessConstraints(lb, ub, lc, uc, c)
-  elseif state_constraint_count == 0 && control_constraint_count != 0
-    c(x) = [eval_dynamics(prob, x), eval_initial_state(prob, x), eval_final_state(prob, x), eval_control_constr(prob, x)]
-    lc = zeros(4) .- 0.0001
-    uc = zeros(4) .+ 0.0001
-    con = WorstFitnessConstraints(lb, ub, lc, uc, c)
-  else
-    c(x) = [eval_dynamics(prob, x), eval_initial_state(prob, x), eval_final_state(prob, x), eval_state_constr(prob, x), eval_control_constr(prob, x)]
-    lc = zeros(5) .- 0.0001
-    uc = zeros(5) .+ 0.0001
-    con = WorstFitnessConstraints(lb, ub, lc, uc, c)
-  end
+  c, lc, uc = create_constraints(state_constraint_count, control_constraint_count, prob, lb, ub)
+  con = WorstFitnessConstraints(lb, ub, lc, uc, c)
 
   # *Clever* inicialization (states set to zero except x0 and xf and control to uniform value between boundaries)
   init_pop = vcat(prob.x0, 0.02 * rand(nx*(N-2)) .- 0.01, prob.xf, [rand() * (ub[i] - lb[i]) + lb[i] for i in N*nx+1:n_vars])
   result = Evolutionary.optimize(objective, con, init_pop,  ea_method, ea_options)
   return result
+end
+
+function create_constraints(state_count, control_count, prob, lb, ub)
+  if state_count == 0 && control_count == 0
+    c1(x) = [eval_dynamics(prob, x), eval_initial_state(prob, x), eval_final_state(prob, x)]
+    lc = zeros(3) .- 0.0001
+    uc = zeros(3) .+ 0.0001
+    return c1, lc, uc
+  elseif state_count != 0 && control_count == 0
+    c2(x) = [eval_dynamics(prob, x), eval_initial_state(prob, x), eval_final_state(prob, x), eval_state_constr(prob, x)]
+    lc = zeros(4) .- 0.0001
+    uc = zeros(4) .+ 0.0001
+    return c2, lc, uc
+  elseif state_count == 0 && control_count != 0
+    c3(x) = [eval_dynamics(prob, x), eval_initial_state(prob, x), eval_final_state(prob, x), eval_control_constr(prob, x)]
+    lc = zeros(4) .- 0.0001
+    uc = zeros(4) .+ 0.0001
+    return c3, lc, uc
+  else
+    c4(x) = [eval_dynamics(prob, x), eval_initial_state(prob, x), eval_final_state(prob, x), eval_state_constr(prob, x), eval_control_constr(prob, x)]
+    lc = zeros(5) .- 0.0001
+    uc = zeros(5) .+ 0.0001
+    return c4, lc, uc
+  end
 end

@@ -152,7 +152,7 @@ function create_OCPSolution(prob::OCProblem, sol::Evolutionary.EvolutionaryOptim
   return OCPSolution(fitness_values, sol.minimum, t, states, controls, sol.f_calls)
 end
 
-function plot_3d_erd(axis, histories::Vector{OCPSolution})
+function plt_3d_erd(axis, histories::Vector{OCPSolution})
   min_fitness = minimum(minimum(h.fitness_values[2:end]) for h in histories)
   max_fitness = maximum(maximum(h.fitness_values[2:end]) for h in histories)
   
@@ -169,7 +169,7 @@ function plot_3d_erd(axis, histories::Vector{OCPSolution})
     probs[:, i] = probabilities
   end
   
-  surface!(axis, eval_points, collect(targets), probs,
+  CairoMakie.surface!(axis, eval_points, collect(targets), probs,
     colormap=:viridis,
     transparency=false,
   )
@@ -259,7 +259,8 @@ function plot_results(prob::OCProblem, ea_sol::Vector{OCPSolution}, diffeq_sol, 
   end
   axislegend(axes[end-1])
 
-  plot_3d_erd(axes[end], ea_sol)
+  # plot_3d_erd(axes[end], ea_sol)
+  plt_3d_erd(axes[end], ea_sol)
 
   return fig
 end
